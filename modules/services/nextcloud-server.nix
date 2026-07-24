@@ -23,6 +23,20 @@ let
   nextcloudApps =
     (builtins.getAttr ("nextcloud" + builtins.toString cfg.version + "Packages") pkgs).apps;
 
+  oidcLoginApp =
+    if cfg.version == 34 then
+      pkgs.nextcloud33Packages.apps.oidc_login.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          # https://github.com/pulsejet/nextcloud-oidc-login/issues/335
+          (pkgs.fetchpatch {
+            url = "https://github.com/pulsejet/nextcloud-oidc-login/commit/f8c6ae6053d36effed688195f551a1f1e6be24a0.patch";
+            hash = "sha256-KBx7Oh6xyNGyx6ryYTdWt6Y6zbpvzkp4bRAKwTcXjmg=";
+          })
+        ];
+      })
+    else
+      nextcloudApps.oidc_login;
+
   occ = "${config.services.nextcloud.occ}/bin/nextcloud-occ";
 in
 {
@@ -96,8 +110,8 @@ in
     version = lib.mkOption {
       description = "Nextcloud version to choose from.";
       type = lib.types.enum [
-        32
         33
+        34
       ];
       default = 33;
     };
@@ -1142,9 +1156,7 @@ in
           }
         ];
 
-        services.nextcloud.extraApps = {
-          inherit (nextcloudApps) oidc_login;
-        };
+        services.nextcloud.extraApps.oidc_login = oidcLoginApp;
 
         systemd.services.nextcloud-setup-pre = {
           wantedBy = [ "multi-user.target" ];

@@ -16,6 +16,11 @@ Template:
 
 # Upcoming Release
 
+## Breaking Changes
+
+- Nextcloud 33 and 34 are now supported, replacing versions 32 and 33. The default is now 33.
+  Deploy version 33 before selecting version 34 because Nextcloud does not support skipping major versions.
+
 # v0.9.0
 
 Commits: https://github.com/ibizaman/selfhostblocks/compare/v0.8.0...v0.9.0
