@@ -1007,8 +1007,11 @@ in
 
         openFirewall = false;
 
-        # This src includes Prometheus metrics exporter.
+        # Retire the Prometheus fork when https://github.com/AnalogJ/scrutiny/pull/830
+        # is available in nixpkgs; otherwise refresh it when nixpkgs updates Scrutiny.
         package =
+          assert lib.assertMsg (pkgs.scrutiny.version == "0.9.5")
+            "Scrutiny changed; review upstream Prometheus support and retire or refresh the metrics override.";
           (pkgs.scrutiny.override {
             buildNpmPackage =
               args:
