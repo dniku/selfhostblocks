@@ -28,20 +28,34 @@
     let
       shbPatches =
         system:
-        nixpkgs.legacyPackages.${system}.lib.optionals
-          (system == "x86_64-linux" || system == "aarch64-linux")
-          [
-            # Get rid of lldap patches when https://github.com/NixOS/nixpkgs/pull/425923 is merged.
+        let
+          unpatchedPkgs = nixpkgs.legacyPackages.${system};
+          inherit (unpatchedPkgs) lib;
+        in
+        lib.optionals (system == "x86_64-linux" || system == "aarch64-linux") [
+          # The original proposal was closed: https://github.com/NixOS/nixpkgs/pull/425923#issuecomment-3975543954.
+          # Revisit the bootstrap package and module options when upstream provides them.
+          (
+            assert lib.assertMsg (
+              !(unpatchedPkgs ? lldap-bootstrap)
+            ) "nixpkgs now provides lldap-bootstrap; review and retire the bundled LLDAP patch.";
             ./patches/lldap.patch
-            ./patches/0001-nixos-borgbackup-add-option-to-override-state-direct.patch
+          )
+          # Retire when nixpkgs provides services.borgbackup.jobs.<name>.stateDir.
+          ./patches/0001-nixos-borgbackup-add-option-to-override-state-direct.patch
+          (
+            assert lib.assertMsg (
+              !(unpatchedPkgs ? prometheus-immich-exporter)
+            ) "nixpkgs now provides prometheus-immich-exporter; review and retire the bundled exporter patch.";
             ./patches/0001-prometheus-immich-exporter-init-at-3.0.2.patch
+          )
 
-            # Leaving commented out as an example.
-            # (originPkgs.fetchpatch {
-            #   url = "https://github.com/NixOS/nixpkgs/pull/317107.patch";
-            #   hash = "sha256-hoLrqV7XtR1hP/m0rV9hjYUBtrSjay0qcPUYlKKuVWk=";
-            # })
-          ];
+          # Leaving commented out as an example.
+          # (originPkgs.fetchpatch {
+          #   url = "https://github.com/NixOS/nixpkgs/pull/317107.patch";
+          #   hash = "sha256-hoLrqV7XtR1hP/m0rV9hjYUBtrSjay0qcPUYlKKuVWk=";
+          # })
+        ];
 
       patchNixpkgs =
         {
