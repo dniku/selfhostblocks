@@ -483,6 +483,58 @@ in
     };
   };
 
+  ldap_auth_helper =
+    let
+      # Test-only credential with JSON-sensitive characters, including a newline.
+      alicePassword = "Test-only \"quoted\" \\ password\nsecond line";
+      helper = pkgs.callPackage ../../modules/services/home-assistant/lldap_ha_auth.nix { };
+    in
+    shb.test.runNixOSTest {
+      name = "homeassistant_ldap_auth_helper";
+      nodes.server = {
+        imports = [
+          shb.test.baseModule
+          shb.test.ldap
+        ];
+        test.subdomain = "ha";
+        shb.hardcodedsecret.alice.settings.content = lib.mkForce alicePassword;
+      };
+
+      testScript =
+        { nodes, ... }:
+        let
+          login =
+            username: password:
+            builtins.toJSON (
+              lib.escapeShellArgs [
+                "env"
+                "username=${username}"
+                "password=${password}"
+                "${helper}/bin/lldap-ha-auth"
+                "http://127.0.0.1:${toString nodes.server.shb.lldap.webUIListenPort}"
+                "user_group"
+                "admin_group"
+              ]
+            );
+        in
+        ''
+          server.start()
+          server.wait_for_unit("lldap.service")
+          with subtest("JSON-sensitive passwords authenticate without changing user privileges"):
+              result = server.succeed(${login "alice" alicePassword})
+              assert "name = Alice Alice" in result
+              assert "group = system-users" in result
+              assert "group = system-admin" not in result
+          with subtest("incorrect passwords are rejected"):
+              server.fail(${login "alice" "WrongPassword"})
+          with subtest("admin membership is preserved"):
+              result = server.succeed(${login "bob" "BobPassword"})
+              assert "group = system-admin" in result
+          with subtest("users outside the allowed groups are rejected"):
+              server.fail(${login "charlie" "CharliePassword"})
+        '';
+    };
+
   # Not yet supported
   #
   # sso = shb.test.runNixOSTest {

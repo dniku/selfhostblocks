@@ -1,0 +1,9 @@
+diff --git a/example_configs/lldap-ha-auth.sh b/example_configs/lldap-ha-auth.sh
+--- a/example_configs/lldap-ha-auth.sh
++++ b/example_configs/lldap-ha-auth.sh
+@@ -53,3 +53,4 @@
+-RESPONSE=$(curl -f -s -X POST -m "$TIMEOUT" -H "Content-type: application/json" -d '{"username":"'"$username"'","password":"'"$password"'"}' "$SERVER_URL/auth/simple/login")
++RESPONSE=$(jq --null-input '{username: env.username, password: env.password}' |
++    curl -f -s -X POST -m "$TIMEOUT" -H "Content-type: application/json" --data-binary @- "$SERVER_URL/auth/simple/login")
+ if [[ $? -ne 0 ]]; then
+     log "Auth failed"
