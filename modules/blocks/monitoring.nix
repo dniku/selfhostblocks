@@ -903,17 +903,22 @@ in
 
       nixpkgs.overlays = [
         (final: prev: {
-          prometheus-systemd-exporter = prev.prometheus-systemd-exporter.overrideAttrs {
-            src = final.fetchFromGitHub {
-              owner = "ibizaman";
-              repo = prev.prometheus-systemd-exporter.pname;
-              # rev = "v${prev.prometheus-systemd-exporter.version}";
-              rev = "next_timer";
-              sha256 = "sha256-jzkh/616tsJbNxFtZ0xbdBQc16TMIYr9QOkPaeQw8xA=";
-            };
+          # Retire the timer metrics fork once a release includes
+          # https://github.com/prometheus-community/systemd_exporter/pull/181.
+          prometheus-systemd-exporter =
+            assert lib.assertMsg (
+              prev.prometheus-systemd-exporter.version == "0.7.0"
+            ) "systemd_exporter changed; review upstream timer metrics support and retire or refresh the fork.";
+            prev.prometheus-systemd-exporter.overrideAttrs {
+              src = final.fetchFromGitHub {
+                owner = "ibizaman";
+                repo = prev.prometheus-systemd-exporter.pname;
+                rev = "387b8cd383604cce9a82c57f7990044e8f66fd53";
+                sha256 = "sha256-jzkh/616tsJbNxFtZ0xbdBQc16TMIYr9QOkPaeQw8xA=";
+              };
 
-            vendorHash = "sha256-4hsQ1417jLNOAqGkfCkzrmEtYR4YLLW2j0CiJtPg6GI=";
-          };
+              vendorHash = "sha256-4hsQ1417jLNOAqGkfCkzrmEtYR4YLLW2j0CiJtPg6GI=";
+            };
         })
       ];
     })
