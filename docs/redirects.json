@@ -1409,6 +1409,21 @@
   "blocks-postgresql-upgrade": [
     "blocks-postgresql.html#blocks-postgresql-upgrade"
   ],
+  "blocks-postgresql-upgrade-copy": [
+    "blocks-postgresql.html#blocks-postgresql-upgrade-copy"
+  ],
+  "blocks-postgresql-upgrade-prepare": [
+    "blocks-postgresql.html#blocks-postgresql-upgrade-prepare"
+  ],
+  "blocks-postgresql-upgrade-recovery": [
+    "blocks-postgresql.html#blocks-postgresql-upgrade-recovery"
+  ],
+  "blocks-postgresql-upgrade-resume": [
+    "blocks-postgresql.html#blocks-postgresql-upgrade-resume"
+  ],
+  "blocks-postgresql-upgrade-validate": [
+    "blocks-postgresql.html#blocks-postgresql-upgrade-validate"
+  ],
   "blocks-postgresql-usage": [
     "blocks-postgresql.html#blocks-postgresql-usage"
   ],
