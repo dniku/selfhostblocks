@@ -1,5 +1,6 @@
 {
   shb,
+  pkgs,
   ...
 }:
 let
@@ -313,6 +314,8 @@ let
     };
 in
 {
+  restore = pkgs.callPackage ./immich-restore.nix { inherit shb; };
+
   basic = shb.test.runNixOSTest {
     name = "immich_basic";
 

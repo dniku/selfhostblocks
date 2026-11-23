@@ -4661,6 +4661,9 @@
   "services-immich-options-shb.immich.publicProxyPort": [
     "services-immich.html#services-immich-options-shb.immich.publicProxyPort"
   ],
+  "services-immich-options-shb.immich.restoreTimeout": [
+    "services-immich.html#services-immich-options-shb.immich.restoreTimeout"
+  ],
   "services-immich-options-shb.immich.settings": [
     "services-immich.html#services-immich-options-shb.immich.settings"
   ],

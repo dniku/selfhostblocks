@@ -393,6 +393,14 @@ in
       default = null;
     };
 
+    restoreTimeout = mkOption {
+      description = ''
+        Maximum time in seconds to observe an active database restore and its completion after submitting the restore request. On timeout, the hook fails and retains the staged dump; Immich may still be restoring or may have completed between polls. Inspect Immich before retrying. Increase this limit for large databases. Successful restores allow a further two minutes for staged-dump cleanup; cleanup failure also returns a nonzero exit status.
+      '';
+      type = lib.types.ints.positive;
+      default = 60 * 60; # One hour.
+    };
+
     backup = mkOption {
       description = ''
         Backup configuration for Immich media files and database.
@@ -552,47 +560,75 @@ in
               cookieJar="$(mktemp)"
               trap 'rm -f "$cookieJar"' EXIT
 
-              if ! curl --silent --fail-with-body -X POST $endpoint/admin/maintenance \
+              if ! curl --silent --show-error --fail --max-time 30 -X POST "$endpoint/admin/maintenance" \
                      -H "Content-Type: application/json" \
                      -H "x-api-key: $apiKey" \
                      -c "$cookieJar" \
-                     --data "{\"action\":\"restore_database\",\"restoreBackupFilename\":\"$filename\"}" \
+                     --output /dev/null \
+                     --data "$(jq -cn --arg filename "$filename" '{action: "restore_database", restoreBackupFilename: $filename}')" \
                      ; then
-                   echo "Could not start restore process, aborting."
+                   echo "Could not confirm the restore request; staged dump retained. Inspect Immich before retrying." >&2
                    exit 1
               fi
 
               interval=2
-              success=true
+              deadline=$((SECONDS + ${toString cfg.restoreTimeout}))
+              observedRestore=false
+              retryArgs=(--retry 60 --retry-delay 2 --retry-connrefused --max-time 10)
 
               while true; do
-                  if response="$( \
-                    curl --silent --fail-with-body -X GET "$endpoint/admin/maintenance/status" \
+                  remaining=$((deadline - SECONDS))
+                  if (( remaining <= 0 )); then
+                      echo "Timed out confirming database restore completion; staged dump retained. Immich may still be restoring." >&2
+                      exit 1
+                  fi
+
+                  if ! response="$( \
+                    timeout --foreground "$remaining" \
+                      curl --silent --show-error --fail "''${retryArgs[@]}" -X GET "$endpoint/admin/maintenance/status" \
                        -H "Content-Type: application/json" \
                        -H "x-api-key: $apiKey" \
                   )"; then
-                      if echo "$response" | jq -e '.task == "error"' >/dev/null; then
-                          echo "Database restore failed." >&2
-                          success=false
-                          break
-                      fi
-
-                      if echo "$response" | jq -e '.active == false and .action == "end"' >/dev/null; then
-                          echo "Database restore completed successfully."
-                          break
-                      fi
+                      echo "Could not confirm database restore completion; staged dump retained. Inspect Immich before retrying." >&2
+                      exit 1
                   fi
 
-                  sleep "$interval"
+                  if ! echo "$response" | jq -e 'type == "object" and (.active | type == "boolean") and (.action | type == "string")' >/dev/null; then
+                      echo "Invalid restore status; staged dump retained." >&2
+                      exit 1
+                  fi
+
+                  if echo "$response" | jq -e '.task == "error"' >/dev/null; then
+                      echo "Database restore failed; staged dump retained." >&2
+                      exit 1
+                  fi
+
+                  # Normal-mode status can also be returned before maintenance starts.
+                  # https://github.com/immich-app/immich/blob/b6b4b80df113656bfa4872cab31c7319e89438a9/server/src/services/maintenance.service.ts#L33-L38
+                  if echo "$response" | jq -e '.active == true and .action == "restore_database"' >/dev/null; then
+                      observedRestore=true
+                  fi
+
+                  if [ "$observedRestore" = true ] && echo "$response" | jq -e '.active == false and .action == "end"' >/dev/null; then
+                      echo "Database restore completed successfully."
+                      break
+                  fi
+
+                  remaining=$((deadline - SECONDS))
+                  if (( remaining > 0 )); then
+                      sleep "$((remaining < interval ? remaining : interval))"
+                  fi
               done
 
-              curl --silent --fail-with-body -X DELETE $endpoint/admin/database-backups \
+              # Deleting an already absent dump is safe to repeat.
+              # https://github.com/immich-app/immich/blob/b6b4b80df113656bfa4872cab31c7319e89438a9/server/src/repositories/storage.repository.ts#L166-L175
+              if ! timeout --foreground 120 \
+                curl --silent --show-error --fail "''${retryArgs[@]}" -X DELETE "$endpoint/admin/database-backups" \
                  -H "Content-Type: application/json" \
                  -H "x-api-key: $apiKey" \
-                 --data "{\"backups\":[\"$filename\"]}"
-
-              if [ $success = false ]; then
-                echo "Something went wrong during the restore"
+                 --output /dev/null \
+                 --data "$(jq -cn --arg filename "$filename" '{backups: [$filename]}')"; then
+                echo "Database restore succeeded, but staged dump cleanup failed. Inspect the staged dump before manual cleanup; do not repeat the restore solely for cleanup." >&2
                 exit 1
               fi
             ''
